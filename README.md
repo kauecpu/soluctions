@@ -1,7 +1,7 @@
 # Vagas Freelancer — Dev
 
-Programa que busca vagas de dev freelancer/remoto (hoje: RemoteOK), guarda
-num banco local sem duplicar, e mostra numa telinha web onde você clica em
+Programa que busca vagas de dev freelancer/remoto (RemoteOK, Workana e
+99Freelas), guarda num banco local sem duplicar, e mostra numa telinha web onde você clica em
 "Enviar" pra marcar a vaga como aplicada e abrir o link pra aplicar.
 
 ## Estrutura
@@ -57,8 +57,8 @@ navegador.
 
 ### 3. Usar
 
-1. Clique em **"Buscar vagas novas"** — o backend vai no RemoteOK, filtra
-   vagas de dev e salva as que ainda não tinha visto.
+1. Clique em **"Buscar vagas novas"** — o backend consulta as fontes
+   disponíveis, filtra vagas de dev e salva as que ainda não tinha visto.
 2. Use o campo de busca pra filtrar por palavra-chave (ex: `python`, `react`,
    `django`).
 3. Clique em **"Enviar"** numa vaga: ela é marcada como aplicada no banco
@@ -67,9 +67,9 @@ navegador.
 
 ## Adicionando novas fontes de vaga
 
-Hoje só o RemoteOK está implementado (`backend/scraper.py`,
-`fetch_remoteok_jobs`), porque é o mais simples de acessar sem login. Pra
-adicionar Workana ou 99Freelas:
+As fontes implementadas são RemoteOK, Workana e 99Freelas (`backend/scraper.py`).
+Workana e 99Freelas são lidos do HTML inicial servido publicamente, sem
+Playwright ou navegador headless. Para adicionar outra fonte:
 
 1. Escreva uma função `fetch_workana_jobs()` (ou similar) em `scraper.py`
    que devolve uma lista de dicts no mesmo formato que `fetch_remoteok_jobs`
@@ -79,10 +79,10 @@ adicionar Workana ou 99Freelas:
 3. Não precisa mexer em mais nada — o banco e a API já lidam com qualquer
    fonte que siga esse formato.
 
-Workana e 99Freelas não têm uma API pública como o RemoteOK, então essa
-parte provavelmente vai exigir raspar o HTML da página de vagas (com
-`requests` + `BeautifulSoup`, ou `Playwright` se a página carregar o
-conteúdo via JavaScript). Vale checar os termos de uso de cada site antes.
+As URLs consultadas são `https://www.workana.com/jobs?category=it-programming`
+e `https://www.99freelas.com.br/projects?q=desenvolvimento`. A estrutura HTML
+dos sites pode mudar; se isso acontecer, a função de parsing correspondente
+deve ser atualizada. Vale checar os termos de uso de cada site antes.
 
 ## Publicando no GitHub
 
@@ -101,15 +101,10 @@ e, por causa da tag, também publica os três executáveis na aba
 
 ## Observação importante
 
-Este projeto foi desenvolvido num ambiente sem acesso à internet externa,
-então a busca ao vivo no RemoteOK (`/api/scrape`) não pôde ser testada
-contra o site real — só a lógica de parsing foi validada com dados de
-exemplo. O restante (banco de dados, endpoints da API, filtro, marcar como
-aplicada) foi testado de ponta a ponta e está funcionando. Ao rodar
-localmente, onde você tem internet normal, vale rodar `python app.py` e
-clicar em "Buscar vagas novas" pra confirmar que a busca ao vivo também
-funciona — se a estrutura do RemoteOK tiver mudado, é só ajustar os nomes
-dos campos em `parse_remoteok_response`.
+As buscas ao vivo das três fontes são feitas com `requests`. Se alguma fonte
+bloquear ou alterar a estrutura da página, o endpoint retorna zero vagas para
+ela e registra o erro no backend; ajuste o parser correspondente em
+`backend/scraper.py` quando necessário.
 
 O workflow do GitHub Actions (`.github/workflows/build.yml`) também não
 pôde ser executado de verdade daqui — só validei a sintaxe do YAML.

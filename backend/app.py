@@ -24,10 +24,9 @@ import sys
 import threading
 import webbrowser
 
-from flask import Flask, jsonify, request, send_from_directory
-
 import db
 import scraper
+from flask import Flask, jsonify, request, send_from_directory
 
 
 def _frontend_dist_dir() -> str:

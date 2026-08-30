@@ -1,10 +1,9 @@
 """
 Scraper de vagas de dev freelancer/remoto.
 
-Por enquanto busca só o RemoteOK, que expõe um endpoint JSON público
-(não é bem uma API oficial documentada, mas é estável e não exige login).
-A ideia é adicionar Workana e 99Freelas depois, seguindo a mesma
-interface: uma função que retorna uma lista de dicts no formato
+Busca RemoteOK, Workana e 99Freelas. RemoteOK expõe um endpoint JSON
+público; Workana e 99Freelas entregam as vagas no HTML inicial, sem
+login. Cada fonte segue a mesma interface e retorna dicts no formato
 padronizado abaixo.
 
 Formato padronizado de cada vaga:
@@ -22,8 +21,13 @@ Formato padronizado de cada vaga:
 """
 from __future__ import annotations
 
+import html
+import json
 import re
+from datetime import UTC, datetime
+
 import requests
+from bs4 import BeautifulSoup
 
 try:
     from deep_translator import GoogleTranslator
@@ -74,7 +78,7 @@ def translate_to_pt(text: str) -> str:
     try:
         translated = GoogleTranslator(source="auto", target="pt").translate(text)
         return translated or text
-    except Exception as e:  # qualquer falha de rede/lib não pode derrubar o scrape
+    except Exception as e:  # noqa: BLE001 - tradução nunca pode derrubar o scraping
         print(f"[scraper] falha ao traduzir descrição: {e}")
         return text
 
@@ -132,6 +136,9 @@ BROWSER_HEADERS = {
     ),
 }
 
+WORKANA_URL = "https://www.workana.com/jobs?category=it-programming"
+NINETY_NINE_FREELAS_URL = "https://www.99freelas.com.br/projects?q=desenvolvimento"
+
 # URLs confirmadas manualmente (navegador, sem login) em 30/08/2026:
 # - Workana: https://www.workana.com/jobs?category=it-programming
 #   Lista renderizada com título, descrição resumida, tags e faixa de
@@ -145,26 +152,103 @@ BROWSER_HEADERS = {
 #   "Desenvolvimento de Games", "Criação & Integração com IA".
 # Nenhum dos dois pediu login pra ver a listagem.
 
+def _absolute_url(base: str, value: str) -> str:
+    if value.startswith(("http://", "https://")):
+        return value
+    return f"{base.rstrip('/')}/{value.lstrip('/')}"
+
+
+def _title_from_workana_html(raw_title: str) -> tuple[str, str]:
+    fragment = BeautifulSoup(raw_title or "", "html.parser")
+    anchor = fragment.find("a")
+    title = anchor.get_text(" ", strip=True) if anchor else fragment.get_text(" ", strip=True)
+    return " ".join(title.split()), anchor.get("href", "") if anchor else ""
+
+
+def parse_workana_response(raw_html: str) -> list[dict]:
+    """Extrai as vagas do JSON SSR embutido no HTML do Workana."""
+    soup = BeautifulSoup(raw_html, "html.parser")
+    search = soup.find("search", attrs={":results-initials": True})
+    if search is None:
+        return []
+    try:
+        payload = json.loads(html.unescape(search[":results-initials"]))
+    except (KeyError, TypeError, json.JSONDecodeError):
+        return []
+    jobs: list[dict] = []
+    for item in payload.get("results", []):
+        if not isinstance(item, dict) or not item.get("slug"):
+            continue
+        title, relative_url = _title_from_workana_html(str(item.get("title", "")))
+        skills = item.get("skills", []) or []
+        tags = [str(skill.get("anchorText", "")).strip() for skill in skills if isinstance(skill, dict)]
+        jobs.append({
+            "source": "workana",
+            "external_id": str(item["slug"]),
+            "title": title,
+            "company": str(item.get("authorName", "") or ""),
+            "description": translate_to_pt(_clean_html(str(item.get("description", "") or ""))),
+            "url": _absolute_url("https://www.workana.com", relative_url or f"/job/{item['slug']}"),
+            "tags": ", ".join(tag for tag in tags if tag),
+            "budget": str(item.get("budget", "") or ""),
+            "posted_at": str(item.get("publishedDate", item.get("postedDate", "")) or ""),
+        })
+    return jobs
+
+
 def fetch_workana_jobs(timeout: int = 15) -> list[dict]:
-    """TODO: implementar de verdade. A URL e a ausência de login já foram
-    confirmadas manualmente (ver comentário acima) — falta:
-    1. Confirmar com requests.get(...) cru se o HTML já vem com as vagas
-       (senão, vai precisar de outra estratégia, tipo Playwright — nesse
-       caso, avisar antes de seguir, por causa do empacotamento em .exe).
-    2. Inspecionar as classes/seletores reais do HTML (abrir "Ver código
-       fonte" no navegador ou inspecionar elemento) e escrever o parser
-       com BeautifulSoup, devolvendo o mesmo formato padronizado das
-       outras funções (não esquecer de passar a description por
-       translate_to_pt, já que a maioria já vem em português — nesse caso
-       a função só retorna o texto original, sem custo)."""
-    raise NotImplementedError("fetch_workana_jobs ainda não foi implementado")
+    """Busca vagas de TI do Workana usando o HTML servido pelo site."""
+    response = requests.get(WORKANA_URL, headers=BROWSER_HEADERS, timeout=timeout)
+    response.raise_for_status()
+    return parse_workana_response(response.text)
+
+
+def _timestamp_text(value: str | None) -> str:
+    if not value or not value.isdigit():
+        return ""
+    return datetime.fromtimestamp(int(value) / 1000, tz=UTC).isoformat()
+
+
+def parse_99freelas_response(raw_html: str) -> list[dict]:
+    """Extrai projetos de desenvolvimento da listagem HTML do 99Freelas."""
+    soup = BeautifulSoup(raw_html, "html.parser")
+    jobs: list[dict] = []
+    for item in soup.select("li.result-item[data-id]"):
+        project_id = item.get("data-id")
+        anchor = item.select_one("h1.title a")
+        if not project_id or anchor is None:
+            continue
+        info = item.select_one(".information")
+        parts = [part.strip() for part in info.get_text("|", strip=True).split("|")] if info else []
+        category = parts[0] if parts else ""
+        description_node = item.select_one(".description")
+        raw_description = (
+            description_node.get("data-content")
+            if description_node is not None and description_node.get("data-content")
+            else description_node.decode_contents() if description_node is not None else ""
+        )
+        posted = item.select_one(".datetime")
+        jobs.append({
+            "source": "99freelas",
+            "external_id": str(project_id),
+            "title": " ".join(anchor.get_text(" ", strip=True).split()),
+            "company": "",
+            "description": translate_to_pt(_clean_html(html.unescape(str(raw_description or "")))),
+            "url": _absolute_url("https://www.99freelas.com.br", str(anchor.get("href", ""))),
+            "tags": category,
+            "budget": "",
+            "posted_at": _timestamp_text(posted.get("cp-datetime") if posted else None),
+        })
+    return jobs
 
 
 def fetch_99freelas_jobs(timeout: int = 15) -> list[dict]:
-    """TODO: implementar de verdade — mesma orientação de fetch_workana_jobs,
-    usando a URL https://www.99freelas.com.br/projects?q=desenvolvimento
-    (ou trocar a query pelas categorias de dev listadas no comentário acima)."""
-    raise NotImplementedError("fetch_99freelas_jobs ainda não foi implementado")
+    """Busca projetos de desenvolvimento do 99Freelas em HTML público."""
+    response = requests.get(
+        NINETY_NINE_FREELAS_URL, headers=BROWSER_HEADERS, timeout=timeout
+    )
+    response.raise_for_status()
+    return parse_99freelas_response(response.text)
 
 
 # Registro central de fontes: chave usada pelo parâmetro ?source= da API

@@ -4,11 +4,11 @@ Camada de banco de dados (SQLite) para o programa de vagas de freelancer.
 Guarda cada vaga com uma chave externa única (source + external_id) para
 nunca duplicar a mesma vaga em buscas futuras.
 """
+import os
 import sqlite3
 import sys
-import os
-from pathlib import Path
 from contextlib import contextmanager
+from pathlib import Path
 
 
 def _default_db_path() -> Path:
