@@ -86,21 +86,18 @@ conteúdo via JavaScript). Vale checar os termos de uso de cada site antes.
 
 ## Publicando no GitHub
 
-O repositório já vem com `git init` feito e o primeiro commit pronto.
-Pra subir:
+O repositório já vem pronto: `git init` feito, primeiro commit feito,
+remote `origin` já apontando pra `https://github.com/kauecpu/soluctions.git`
+e a tag `v1.0.0` já criada localmente. Só falta um comando:
 
 ```bash
-git remote add origin https://github.com/SEU-USUARIO/SEU-REPO.git
-git branch -M main
-git push -u origin main
+git push -u origin main --tags
 ```
 
-Depois de criar o repositório vazio no GitHub (sem README, sem
-.gitignore — já tem tudo aqui) e trocar `SEU-USUARIO/SEU-REPO` pela URL
-real. Assim que o push terminar, o workflow em
-`.github/workflows/build.yml` já aparece na aba **Actions** do repo. Ele
-builda a cada push na `main`, mas só publica na aba **Releases** quando
-você criar uma tag `v*` (ex: `git tag v1.0.0 && git push origin v1.0.0`).
+Isso manda o código e a tag de uma vez só. Assim que terminar, o workflow
+em `.github/workflows/build.yml` roda sozinho na aba **Actions** do repo
+e, por causa da tag, também publica os três executáveis na aba
+**Releases** — não precisa fazer mais nada depois desse push.
 
 ## Observação importante
 
