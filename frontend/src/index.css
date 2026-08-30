@@ -42,21 +42,65 @@ body {
   cursor: default;
 }
 
-.app__controls {
-  display: flex;
-  gap: 16px;
-  align-items: center;
+.app__panel {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
   margin-bottom: 16px;
-  flex-wrap: wrap;
 }
 
-.app__controls input[type="text"] {
+.app__panel-title {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.app__panel-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.app__panel-row select {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: white;
+}
+
+.app__panel-row input[type="text"] {
   flex: 1;
   min-width: 220px;
   padding: 10px 12px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-size: 0.95rem;
+}
+
+.app__panel-row button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.app__panel-row button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.app__button-secondary {
+  background: #e5e7eb !important;
+  color: #374151 !important;
 }
 
 .app__checkbox {

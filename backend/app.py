@@ -56,12 +56,20 @@ def get_jobs():
 
 @app.route("/api/scrape", methods=["POST"])
 def scrape():
-    fresh_jobs = scraper.fetch_all_jobs()
+    source = request.args.get("source") or None
+    sources = [source] if source else None
+    fresh_jobs = scraper.fetch_all_jobs(sources=sources)
     inserted = db.upsert_jobs(fresh_jobs)
     return jsonify({
         "found": len(fresh_jobs),
         "new": inserted,
+        "source": source or "todas",
     })
+
+
+@app.route("/api/sources", methods=["GET"])
+def sources():
+    return jsonify(list(scraper.SOURCE_FETCHERS.keys()))
 
 
 @app.route("/api/jobs/<int:job_id>/apply", methods=["POST"])

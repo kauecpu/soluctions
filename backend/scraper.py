@@ -25,6 +25,11 @@ from __future__ import annotations
 import re
 import requests
 
+try:
+    from deep_translator import GoogleTranslator
+except ImportError:  # lib pode não estar instalada ainda (ver requirements.txt)
+    GoogleTranslator = None
+
 REMOTEOK_API_URL = "https://remoteok.com/api"
 REMOTEOK_HEADERS = {
     # o RemoteOK bloqueia requests sem User-Agent de navegador
@@ -59,6 +64,21 @@ def _clean_html(raw_html: str, max_len: int = 600) -> str:
     return text[:max_len] + ("..." if len(text) > max_len else "")
 
 
+def translate_to_pt(text: str) -> str:
+    """Traduz a descrição da vaga pra português. Se a lib não estiver
+    instalada, se não houver internet, ou se o texto já estiver em
+    português (fontes como Workana/99Freelas), devolve o texto original
+    sem travar o scraping por causa disso."""
+    if not text or GoogleTranslator is None:
+        return text
+    try:
+        translated = GoogleTranslator(source="auto", target="pt").translate(text)
+        return translated or text
+    except Exception as e:  # qualquer falha de rede/lib não pode derrubar o scrape
+        print(f"[scraper] falha ao traduzir descrição: {e}")
+        return text
+
+
 def parse_remoteok_response(raw_jobs: list[dict]) -> list[dict]:
     """Transforma a resposta crua da API do RemoteOK no formato padronizado.
     Separado do fetch pra dar pra testar sem precisar de rede."""
@@ -88,7 +108,7 @@ def parse_remoteok_response(raw_jobs: list[dict]) -> list[dict]:
             "external_id": item["id"],
             "title": position,
             "company": item.get("company", ""),
-            "description": _clean_html(item.get("description", "")),
+            "description": translate_to_pt(_clean_html(item.get("description", ""))),
             "url": url,
             "tags": ", ".join(tags),
             "budget": budget,
@@ -105,12 +125,72 @@ def fetch_remoteok_jobs(timeout: int = 15) -> list[dict]:
     return parse_remoteok_response(raw_jobs)
 
 
-def fetch_all_jobs() -> list[dict]:
-    """Ponto único que o backend chama. Fontes futuras (Workana, 99Freelas)
-    entram aqui, cada uma numa função própria, igual fetch_remoteok_jobs."""
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
+}
+
+# URLs confirmadas manualmente (navegador, sem login) em 30/08/2026:
+# - Workana: https://www.workana.com/jobs?category=it-programming
+#   Lista renderizada com título, descrição resumida, tags e faixa de
+#   orçamento (USD). Tem paginação ("Próxima"), aparenta ser HTML
+#   servido pronto (não SPA pura) — mas ISSO PRECISA SER CONFIRMADO com
+#   um requests.get() cru antes de confiar 100% (ver TODO abaixo).
+# - 99Freelas: https://www.99freelas.com.br/projects?q=desenvolvimento
+#   Lista com 232 resultados no momento do teste, paginação numerada
+#   (padrão de app com paginação no servidor). Categorias relevantes:
+#   "Desenvolvimento Web", "Desenvolvimento Mobile",
+#   "Desenvolvimento de Games", "Criação & Integração com IA".
+# Nenhum dos dois pediu login pra ver a listagem.
+
+def fetch_workana_jobs(timeout: int = 15) -> list[dict]:
+    """TODO: implementar de verdade. A URL e a ausência de login já foram
+    confirmadas manualmente (ver comentário acima) — falta:
+    1. Confirmar com requests.get(...) cru se o HTML já vem com as vagas
+       (senão, vai precisar de outra estratégia, tipo Playwright — nesse
+       caso, avisar antes de seguir, por causa do empacotamento em .exe).
+    2. Inspecionar as classes/seletores reais do HTML (abrir "Ver código
+       fonte" no navegador ou inspecionar elemento) e escrever o parser
+       com BeautifulSoup, devolvendo o mesmo formato padronizado das
+       outras funções (não esquecer de passar a description por
+       translate_to_pt, já que a maioria já vem em português — nesse caso
+       a função só retorna o texto original, sem custo)."""
+    raise NotImplementedError("fetch_workana_jobs ainda não foi implementado")
+
+
+def fetch_99freelas_jobs(timeout: int = 15) -> list[dict]:
+    """TODO: implementar de verdade — mesma orientação de fetch_workana_jobs,
+    usando a URL https://www.99freelas.com.br/projects?q=desenvolvimento
+    (ou trocar a query pelas categorias de dev listadas no comentário acima)."""
+    raise NotImplementedError("fetch_99freelas_jobs ainda não foi implementado")
+
+
+# Registro central de fontes: chave usada pelo parâmetro ?source= da API
+# e pelo seletor do frontend -> função que busca e normaliza as vagas.
+SOURCE_FETCHERS = {
+    "remoteok": fetch_remoteok_jobs,
+    "workana": fetch_workana_jobs,
+    "99freelas": fetch_99freelas_jobs,
+}
+
+
+def fetch_all_jobs(sources: list[str] | None = None) -> list[dict]:
+    """Ponto único que o backend chama. Sem argumento, busca de todas as
+    fontes registradas; com uma lista de chaves (ex: ["workana"]), busca
+    só dessas. Uma fonte falhando não derruba as outras."""
+    keys = sources if sources else list(SOURCE_FETCHERS.keys())
     all_jobs: list[dict] = []
-    try:
-        all_jobs += fetch_remoteok_jobs()
-    except requests.RequestException as e:
-        print(f"[scraper] falha ao buscar RemoteOK: {e}")
+    for key in keys:
+        fetcher = SOURCE_FETCHERS.get(key)
+        if fetcher is None:
+            print(f"[scraper] fonte desconhecida ignorada: {key}")
+            continue
+        try:
+            all_jobs += fetcher()
+        except NotImplementedError:
+            print(f"[scraper] fonte ainda não implementada: {key}")
+        except requests.RequestException as e:
+            print(f"[scraper] falha ao buscar {key}: {e}")
     return all_jobs
