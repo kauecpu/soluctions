@@ -1,0 +1,86 @@
+name: Build executáveis
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Instalar dependências do backend
+        working-directory: backend
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Definir separador de --add-data por SO
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            echo "SEP=;" >> "$GITHUB_ENV"
+          else
+            echo "SEP=:" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build do executável (PyInstaller)
+        working-directory: backend
+        run: |
+          pyinstaller --onefile --name vagas-freelancer-dev \
+            --add-data "../frontend/dist${SEP}frontend_dist" \
+            app.py
+
+      - name: Renomear artefato por sistema operacional
+        working-directory: backend/dist
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            mv vagas-freelancer-dev.exe vagas-freelancer-dev-windows.exe
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            mv vagas-freelancer-dev vagas-freelancer-dev-macos
+          else
+            mv vagas-freelancer-dev vagas-freelancer-dev-linux
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vagas-freelancer-dev-${{ runner.os }}
+          path: backend/dist/vagas-freelancer-dev-*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*

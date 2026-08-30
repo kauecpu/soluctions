@@ -1,0 +1,165 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #f5f6f8;
+  color: #1a1a1a;
+}
+
+.app {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+.app__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.app__header h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.app__header button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.app__header button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.app__controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.app__controls input[type="text"] {
+  flex: 1;
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
+.app__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.app__message {
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.app__error {
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
+
+.job-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.job-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.job-card--applied {
+  opacity: 0.6;
+}
+
+.job-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.job-card__header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.job-card__source {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.job-card__company {
+  margin: 4px 0;
+  font-weight: 600;
+  color: #374151;
+}
+
+.job-card__description {
+  color: #4b5563;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.job-card__meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 8px 0;
+}
+
+.job-card__actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.job-card__actions a {
+  color: #2563eb;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.job-card__actions button {
+  background: #16a34a;
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.job-card__actions button:disabled {
+  background: #9ca3af;
+  cursor: default;
+}

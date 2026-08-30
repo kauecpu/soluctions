@@ -1,0 +1,5 @@
+backend/jobs.db
+backend/__pycache__/
+frontend/node_modules/
+frontend/dist/
+.DS_Store
